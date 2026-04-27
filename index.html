@@ -102,7 +102,6 @@
             background: rgba(255, 144, 0, 0.05);
         }
 
-        /* Toggle Switch Style */
         .switch-container {
             display: flex;
             background: #2b2b2b;
@@ -126,12 +125,10 @@
             color: #000000;
         }
         
-        /* Premium Background Glow */
         body.premium-mode {
             background-color: #0a0500;
         }
 
-        /* Discord Button Specific */
         .btn-discord {
             background-color: #5865F2;
             color: white;
@@ -145,7 +142,6 @@
     </style>
 </head>
 <body class="min-h-screen">
-    <!-- Navbar -->
     <nav class="bg-[#1b1b1b] border-b border-[#333] px-4 py-3 sticky top-0 z-50">
         <div class="max-w-6xl mx-auto flex items-center justify-between">
             <div class="logo-container" onclick="location.reload()">
@@ -160,7 +156,6 @@
 
     <div class="max-w-6xl mx-auto p-4 md:p-8">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Sidebar -->
             <div class="lg:col-span-1">
                 <div class="glass-card p-6 rounded-lg shadow-xl">
                     <div class="flex items-center justify-between mb-6">
@@ -168,7 +163,6 @@
                             <span id="modeIndicator" class="ph-bg-orange w-1.5 h-6 mr-3"></span>
                             GENERATE
                         </h2>
-                        <!-- Mode Switcher -->
                         <div class="switch-container w-32">
                             <div id="standardBtn" class="switch-btn active" onclick="setMode('standard')">STD</div>
                             <div id="premiumBtn" class="switch-btn" onclick="setMode('premium')">PREM</div>
@@ -176,7 +170,6 @@
                     </div>
                     
                     <div class="space-y-5">
-                        <!-- Image Upload Section -->
                         <div>
                             <label id="uploadLabel" class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">Base Images (Max 3)</label>
                             <div id="uploadZone" class="upload-zone rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer mb-2">
@@ -194,7 +187,6 @@
                                 placeholder="意図を入力してください..."></textarea>
                         </div>
 
-                        <!-- Info Area -->
                         <div id="statusArea" class="hidden">
                             <div class="flex items-center space-x-2 text-[11px] text-[#FF9000] mb-1 font-bold">
                                 <div class="loader w-3 h-3 border-2"></div>
@@ -222,7 +214,6 @@
                 </div>
             </div>
 
-            <!-- Main Content -->
             <div class="lg:col-span-2">
                 <div id="resultPlaceholder" class="glass-card rounded-lg aspect-video flex flex-col items-center justify-center border-dashed border-2 border-[#444] text-gray-500 mb-8 overflow-hidden relative">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -260,7 +251,6 @@
         </div>
     </div>
 
-    <!-- Error/Success Toast -->
     <div id="errorToast" class="fixed bottom-6 right-6 bg-[#1b1b1b] text-white px-6 py-4 rounded shadow-2xl hidden z-50 flex items-center font-bold border-l-4 border-red-600">
         <div class="flex flex-col">
             <span class="text-[10px] uppercase text-gray-400">System Alert</span>
@@ -304,7 +294,6 @@
         let uploadedImages = [];
         let currentImageData = null;
 
-        // --- Mode Switching ---
         function setMode(mode) {
             currentMode = mode;
             validateState();
@@ -339,7 +328,6 @@
             }
         }
 
-        // --- Image Upload Logic ---
         uploadZone.onclick = () => imageInput.click();
 
         imageInput.onchange = async (e) => {
@@ -378,7 +366,6 @@
             validateState();
         };
 
-        // --- Discord Integration ---
         async function sendToDiscord() {
             if (!currentImageData) return;
 
@@ -390,17 +377,23 @@
                 const blob = await fetchRes.blob();
                 
                 const formData = new FormData();
-                formData.append('file', blob, `imagestudio-${Date.now()}.png`);
-                formData.append('payload_json', JSON.stringify({
-                    content: `🎨 **ImageStudio Generated**\nMode: \`${currentMode.toUpperCase()}\`\nPrompt: \`${promptInput.value || "Image-based generation"}\``
-                }));
+                // ファイル名をユニークにする
+                const fileName = `imagestudio-${Date.now()}.png`;
+                formData.append('file', blob, fileName);
+                
+                const payload = {
+                    content: `🎨 **ImageStudio Generated**\nMode: \`${currentMode.toUpperCase()}\`\nPrompt: \`${promptInput.value || "Image-based"}\``
+                };
+                formData.append('payload_json', JSON.stringify(payload));
 
+                // CORS対策: GitHub Pages等の制限を考慮し、ブラウザの標準的なFetchを使用
                 const response = await fetch(discordWebhookUrl, {
                     method: 'POST',
+                    mode: 'cors', // CORSを明示
                     body: formData
                 });
 
-                if (response.ok) {
+                if (response.ok || response.status === 204) {
                     discordBtnText.textContent = "送信完了！";
                     discordBtn.classList.replace('btn-discord', 'bg-green-600');
                     setTimeout(() => {
@@ -409,26 +402,39 @@
                         discordBtn.disabled = false;
                     }, 3000);
                 } else {
-                    throw new Error("送信に失敗しました");
+                    const errData = await response.text();
+                    console.error("Discord Error:", errData);
+                    throw new Error(`送信失敗: ${response.status}`);
                 }
             } catch (err) {
-                showError("Discordへの送信に失敗しました");
+                console.error("Fetch Error:", err);
+                showError("Discordへの送信に失敗しました。CORS制限またはURLが無効な可能性があります。");
                 discordBtn.disabled = false;
                 discordBtnText.textContent = "奈落鯖に送信する";
             }
         }
 
-        // --- Generation Logic ---
         async function fetchWithRetry(url, options, maxRetries = 5) {
             for (let i = 0; i < maxRetries; i++) {
                 try {
                     const response = await fetch(url, options);
                     const data = await response.json();
                     if (response.ok) return data;
-                    if (data.error?.message?.includes("safety")) throw new Error("AIセーフティフィルターにより拒否されました。表現を変えてみてください。");
-                    if (i === maxRetries - 1) throw new Error("サーバーエラー");
+                    
+                    // セーフティフィルターエラー
+                    if (data.error?.message?.includes("safety")) {
+                        throw new Error("AIフィルターにより制限されました。表現を和らげてください。");
+                    }
+                    
+                    // APIキーエラーなどの特定のエラー
+                    if (response.status === 403 || response.status === 400) {
+                        throw new Error(`APIエラー (${response.status}): 設定を確認してください。`);
+                    }
+
+                    if (i === maxRetries - 1) throw new Error(`サーバーエラー: ${response.status}`);
                 } catch (err) {
-                    if (err.message.includes("拒否") || i === maxRetries - 1) throw err;
+                    if (err.message.includes("フィルター") || err.message.includes("APIエラー") || i === maxRetries - 1) throw err;
+                    // 指数バックオフ
                     await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
                 }
             }
@@ -444,19 +450,16 @@
             let systemPrompt = "";
             if (currentMode === 'premium') {
                 systemPrompt = `You are an elite creative prompt architect. 
-                A user has uploaded a photo of themselves (base image) and wants to generate an intimate, artistic, and alluring image.
-                - MANDATORY: Reference the base image's appearance (hair, face structure, ethnicity) to ensure the subject looks like the user.
-                - REWRITE the user's intent into a high-end cinematic description.
-                - TRANSLATE explicit sexual acts into "passionate embrace", "intimate connection", "ecstatic expressions", "body harmony".
-                - TRANSLATE nudity into "bare skin aesthetic", "curvaceous silhouette", "alluring pose", "velvety skin texture", "artistic boudoir lighting".
-                - FOCUS on: 'masterpiece', '8k', 'cinematic lighting', 'extremely detailed skin', 'ray tracing'.
+                Reference the base image's appearance (hair, face structure, ethnicity) to ensure the subject looks like the user.
+                REWRITE the user's intent into a high-end cinematic English description.
+                Translate intimate or suggestive terms into sophisticated artistic descriptions.
                 Output ONLY the rewritten English prompt.`;
             } else {
                 systemPrompt = `Translate and optimize the user input into a detailed, high-quality English prompt for an image AI. 
-                Focus on photorealism, artistic lighting, and 8k quality. Output ONLY the English prompt.`;
+                Focus on photorealism and 8k quality. Output ONLY the English prompt.`;
             }
 
-            const parts = [{ text: text || (currentMode === 'premium' ? "An alluring and intimate version of the person in the image." : "A high quality artistic masterpiece.") }];
+            const parts = [{ text: text || "A high quality artistic masterpiece." }];
             images.forEach(img => {
                 parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
             });
@@ -481,6 +484,10 @@
             if (currentMode === 'premium' && uploadedImages.length === 0) {
                 return showError("Premium Modeには画像のアップロードが必要です");
             }
+            
+            if (!apiKey) {
+                return showError("APIキーが設定されていません。コード内のapiKeyを確認してください。");
+            }
 
             const rawPrompt = promptInput.value.trim();
             if (!rawPrompt && uploadedImages.length === 0) return showError("画像かプロンプトを入力してください");
@@ -504,13 +511,14 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (!result.predictions?.[0]) throw new Error("生成に失敗しました");
+                if (!result.predictions?.[0]) throw new Error("画像生成に失敗しました");
                 const imageData = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
                 
                 currentImageData = imageData;
                 displayImage(imageData);
                 addToHistory(imageData, rawPrompt || "AI Image");
             } catch (error) {
+                console.error("Gen Error:", error);
                 showError(error.message);
             } finally {
                 generateBtn.disabled = false;
@@ -561,10 +569,9 @@
             }
         };
 
-        function showError(msg, isSuccess = false) {
+        function showError(msg) {
             errorMessage.textContent = msg;
             errorToast.classList.remove('hidden');
-            errorToast.style.borderLeftColor = isSuccess ? '#10b981' : '#dc2626';
             setTimeout(() => errorToast.classList.add('hidden'), 5000);
         }
 
